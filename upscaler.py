@@ -43,8 +43,6 @@ def main():
         input_folder = args.image.parent
         images = [args.image]
 
-    if (output_folder := args.output_folder) is None:
-        output_folder = input_folder / "output"
 
     if resize := args.resize:
         resize_x, resize_y = (int(x) for x in resize.split("x"))
@@ -61,14 +59,25 @@ def main():
     upscale = not args.no_upscale
 
     logging.info("Input folder: %s", input_folder)
-    logging.info("Output folder: %s", output_folder)
 
-    output_folder.mkdir(exist_ok=True, parents=True)
+    if chosen_output_folder := args.output_folder:
+        chosen_output_folder = chosen_output_folder / "upscaled"
+        logging.info("Output folder: %s", chosen_output_folder)
+    else:
+        logging.info("Output folder is not provided")
+
 
     overwrite = args.overwrite
 
     for image in images:
         image_data = Image.open(image).convert("RGB")
+
+        if not chosen_output_folder:
+            output_folder = image.parent / "upscaled"
+        else:
+            output_folder = chosen_output_folder
+
+        output_folder.mkdir(exist_ok=True, parents=True)
         hi_res_img_path = output_folder / (image.stem + "_upscaled.jpg")
         if hi_res_img_path.exists() and not overwrite:
             continue
