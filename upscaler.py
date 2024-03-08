@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--no-upscale", action="store_true")
     parser.add_argument("--full-frame-resize", type=str, default=None)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--recursive", action="store_true")
 
     args = parser.parse_args()
 
@@ -37,7 +38,10 @@ def main():
     if args.image_folder is not None:
         input_folder = args.image_folder
         for extension in ["jpg", "png"]:
-            images.extend(list(args.image_folder.glob(f"*.{extension}")))
+            if args.recursive:
+                images.extend(list(args.image_folder.rglob(f"*.{extension}")))
+            else:
+                images.extend(list(args.image_folder.glob(f"*.{extension}")))
         images.sort()
     else:
         input_folder = args.image.parent
