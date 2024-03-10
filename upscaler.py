@@ -81,8 +81,10 @@ def main():
     logging.info("Set to GPU %d", gpu_number)
     device = f"cuda:{gpu_number}"
 
-    enable_attention_slicing = args.enable_attention_slicing
-    logging.info("Enable attention slicing: %s", enable_attention_slicing)
+    if enable_attention_slicing := args.enable_attention_slicing:
+        logging.info("Attention slicing enabled")
+    else:
+        logging.info("Attention slicing disabled")
 
     for image in images:
         treat_image(
@@ -114,6 +116,7 @@ def treat_image(
     full_frame_resize_x: int | None,
     full_frame_resize_y: int | None,
     enable_attention_slicing: bool = False,
+    enable_xformers_memory_attention: bool = True,
     device: str = "cuda",
 ):
     image_data = Image.open(image).convert("RGB")
@@ -144,6 +147,8 @@ def treat_image(
         logging.info("Processing %s", image)
         if enable_attention_slicing:
             pipeline.enable_attention_slicing()
+        elif enable_xformers_memory_attention:
+            pipeline.enable_xformers_memory_efficient_attention()
 
         try:
             image_data = pipeline(prompt=prompt, image=image_data).images[0]
@@ -164,7 +169,8 @@ def treat_image(
                     enable_attention_slicing=True,
                 )
             else:
-                raise
+                logging.error("Failed to upscale %s. Passing", image)
+                return
 
     if full_frame_resize_x is not None and full_frame_resize_y is not None:
         image_data = resize_image(
