@@ -28,6 +28,7 @@ def main():
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--recursive", action="store_true")
     parser.add_argument("--gpu-number", type=int, default=0)
+    parser.add_argument("--enable-attention-slicing", "-e", action="store_true")
 
     args = parser.parse_args()
 
@@ -80,6 +81,9 @@ def main():
     logging.info("Set to GPU %d", gpu_number)
     device = f"cuda:{gpu_number}"
 
+    enable_attention_slicing = args.enable_attention_slicing
+    logging.info("Enable attention slicing: %s", enable_attention_slicing)
+
     for image in images:
         treat_image(
             image,
@@ -93,6 +97,7 @@ def main():
             full_frame_resize_x=full_frame_resize_x,
             full_frame_resize_y=full_frame_resize_y,
             device=device,
+            enable_attention_slicing=enable_attention_slicing,
         )
 
 
@@ -131,6 +136,7 @@ def treat_image(
     # Upscale only if the image is smaller than the target size
     if upscale and (image_data.width < resize_x or image_data.height < resize_y):
         logging.info("Loading model")
+        torch.cuda.empty_cache()
         pipeline = StableDiffusionUpscalePipeline.from_pretrained(
             model_id, torch_dtype=torch.float16
         )
