@@ -44,9 +44,10 @@ def main():
         input_folder = args.image_folder
         for extension in ["jpg", "png"]:
             if args.recursive:
-                generator = args.image_folder.rglob(f"*.{extension}")
+                generator = input_folder.rglob(f"*.{extension}")
             else:
-                generator = args.image_folder.glob(f"*.{extension}")
+                generator = input_folder.glob(f"*.{extension}")
+            breakpoint()
             images.extend([x for x in generator if UPSCALED_SUFFIX not in x.name])
         images.sort()
     else:
