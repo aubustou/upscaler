@@ -21,6 +21,7 @@ TEMPORARY_SUFFIX = "_temp"
 
 MAX_IMAGE_WIDTH = 500
 MAX_IMAGE_HEIGHT = 500
+MAX_NUMBER_OF_PIXELS = MAX_IMAGE_WIDTH * MAX_IMAGE_HEIGHT
 
 
 def cut_image(image: Image.Image) -> list[Image.Image]:
@@ -191,62 +192,21 @@ def treat_image(
     logger.info("Image size: %dx%d", image_data.width, image_data.height)
     logger.info("Target size: %dx%d", resize_x, resize_y)
 
-    if (
-        upscale
-        and image_data.width <= MAX_IMAGE_WIDTH
-        and image_data.height <= MAX_IMAGE_HEIGHT
-    ):
-        logger.info("Image is too big. Cutting it into parts")
+    number_of_pixels = image_data.width * image_data.height
 
-        parts: list[Image.Image] = cut_image(image_data)
-        seed = random.randint(0, 2**32 - 1)
-        seed_generator = torch.Generator(device=device).manual_seed(seed)
+    if upscale:
+        if number_of_pixels >= MAX_NUMBER_OF_PIXELS:
+            logger.info("Image is too big. Cutting it into parts")
 
-        logger.info("Use seed %d", seed)
+            parts: list[Image.Image] = cut_image(image_data)
+            seed = random.randint(0, 2**32 - 1)
+            seed_generator = torch.Generator(device=device).manual_seed(seed)
 
-        for image_ in parts:
-            treat_image(
-                image_,
-                chosen_output_folder,
-                prompt,
-                overwrite=overwrite,
-                upscale=upscale,
-                resize=resize,
-                resize_x=resize_x,
-                resize_y=resize_y,
-                full_frame_resize_x=full_frame_resize_x,
-                full_frame_resize_y=full_frame_resize_y,
-                enable_attention_slicing=enable_attention_slicing,
-                enable_xformers_memory_attention=enable_xformers_memory_attention,
-                device=device,
-                seed_generator=seed_generator,
-            )
-        image_data = recompose_image(parts, image_data.width, image_data.height)
-    # Upscale only if the image is smaller than the target size
-    elif upscale and (image_data.width < resize_x or image_data.height < resize_y):
-        logger.info("Loading model %s", model_id)
-        torch.cuda.empty_cache()
-        pipeline = StableDiffusionUpscalePipeline.from_pretrained(
-            model_id, torch_dtype=torch.float16
-        )
-        pipeline = pipeline.to(device)
-        logger.info("Processing %s", image)
-        if enable_attention_slicing:
-            pipeline.enable_attention_slicing()
-        elif enable_xformers_memory_attention:
-            pipeline.enable_xformers_memory_efficient_attention()
+            logger.info("Use seed %d", seed)
 
-        try:
-            image_data = pipeline(
-                prompt=prompt,
-                image=image_data,
-                generator=[seed_generator] if seed_generator is not None else None,
-            ).images[0]
-        except OutOfMemoryError as exc:
-            logger.warning(exc)
-            if not enable_attention_slicing:
-                return treat_image(
-                    image,
+            for image_ in parts:
+                treat_image(
+                    image_,
                     chosen_output_folder,
                     prompt,
                     overwrite=overwrite,
@@ -256,12 +216,52 @@ def treat_image(
                     resize_y=resize_y,
                     full_frame_resize_x=full_frame_resize_x,
                     full_frame_resize_y=full_frame_resize_y,
-                    enable_attention_slicing=True,
+                    enable_attention_slicing=enable_attention_slicing,
+                    enable_xformers_memory_attention=enable_xformers_memory_attention,
+                    device=device,
                     seed_generator=seed_generator,
                 )
-            else:
-                logging.error("Failed to upscale %s. Passing", image)
-                return
+            image_data = recompose_image(parts, image_data.width, image_data.height)
+        # Upscale only if the image is smaller than the target size
+        elif image_data.width < resize_x or image_data.height < resize_y:
+            logger.info("Loading model %s", model_id)
+            torch.cuda.empty_cache()
+            pipeline = StableDiffusionUpscalePipeline.from_pretrained(
+                model_id, torch_dtype=torch.float16
+            )
+            pipeline = pipeline.to(device)
+            logger.info("Processing %s", image)
+            if enable_attention_slicing:
+                pipeline.enable_attention_slicing()
+            elif enable_xformers_memory_attention:
+                pipeline.enable_xformers_memory_efficient_attention()
+
+            try:
+                image_data = pipeline(
+                    prompt=prompt,
+                    image=image_data,
+                    generator=[seed_generator] if seed_generator is not None else None,
+                ).images[0]
+            except OutOfMemoryError as exc:
+                logger.warning(exc)
+                if not enable_attention_slicing:
+                    return treat_image(
+                        image,
+                        chosen_output_folder,
+                        prompt,
+                        overwrite=overwrite,
+                        upscale=upscale,
+                        resize=resize,
+                        resize_x=resize_x,
+                        resize_y=resize_y,
+                        full_frame_resize_x=full_frame_resize_x,
+                        full_frame_resize_y=full_frame_resize_y,
+                        enable_attention_slicing=True,
+                        seed_generator=seed_generator,
+                    )
+                else:
+                    logging.error("Failed to upscale %s. Passing", image)
+                    return
 
     if full_frame_resize_x is not None and full_frame_resize_y is not None:
         image_data = resize_image(
