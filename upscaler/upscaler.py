@@ -19,8 +19,8 @@ model_id = "stabilityai/stable-diffusion-x4-upscaler"
 UPSCALED_SUFFIX = "_upscaled"
 TEMPORARY_SUFFIX = "_temp"
 
-MAX_IMAGE_WIDTH = 2048
-MAX_IMAGE_HEIGHT = 2048
+MAX_IMAGE_WIDTH = 500
+MAX_IMAGE_HEIGHT = 500
 
 
 def cut_image(image: Image.Image) -> list[Image.Image]:
