@@ -187,9 +187,40 @@ def treat_image(
     if resize_y is None:
         resize_y = image_data.height * 4
 
+    if (
+        upscale
+        and image_data.width <= MAX_IMAGE_WIDTH
+        and image_data.height <= MAX_IMAGE_HEIGHT
+    ):
+        logger.info("Image is too big. Cutting it into parts")
+
+        parts: list[Image.Image] = cut_image(image_data)
+        seed = random.randint(0, 2**32 - 1)
+        seed_generator = torch.Generator(device=device).manual_seed(seed)
+
+        logger.info("Use seed %d", seed)
+
+        for image_ in parts:
+            treat_image(
+                image_,
+                chosen_output_folder,
+                prompt,
+                overwrite=overwrite,
+                upscale=upscale,
+                resize=resize,
+                resize_x=resize_x,
+                resize_y=resize_y,
+                full_frame_resize_x=full_frame_resize_x,
+                full_frame_resize_y=full_frame_resize_y,
+                enable_attention_slicing=enable_attention_slicing,
+                enable_xformers_memory_attention=enable_xformers_memory_attention,
+                device=device,
+                seed_generator=seed_generator,
+            )
+        image_data = recompose_image(parts, image_data.width, image_data.height)
     # Upscale only if the image is smaller than the target size
-    if upscale and (image_data.width < resize_x or image_data.height < resize_y):
-        logging.info("Loading model")
+    elif upscale and (image_data.width < resize_x or image_data.height < resize_y):
+        logging.info("Loading model %s", model_id)
         torch.cuda.empty_cache()
         pipeline = StableDiffusionUpscalePipeline.from_pretrained(
             model_id, torch_dtype=torch.float16
@@ -227,33 +258,6 @@ def treat_image(
             else:
                 logging.error("Failed to upscale %s. Passing", image)
                 return
-    elif (
-        upscale
-        and image_data.width <= MAX_IMAGE_WIDTH
-        and image_data.height <= MAX_IMAGE_HEIGHT
-    ):
-        parts: list[Image.Image] = cut_image(image_data)
-        seed = random.randint(0, 2**32 - 1)
-        seed_generator = torch.Generator(device=device).manual_seed(seed)
-
-        for image_ in parts:
-            treat_image(
-                image_,
-                chosen_output_folder,
-                prompt,
-                overwrite=overwrite,
-                upscale=upscale,
-                resize=resize,
-                resize_x=resize_x,
-                resize_y=resize_y,
-                full_frame_resize_x=full_frame_resize_x,
-                full_frame_resize_y=full_frame_resize_y,
-                enable_attention_slicing=enable_attention_slicing,
-                enable_xformers_memory_attention=enable_xformers_memory_attention,
-                device=device,
-                seed_generator=seed_generator,
-            )
-            image_data = recompose_image(parts, image_data.width, image_data.height)
 
     if full_frame_resize_x is not None and full_frame_resize_y is not None:
         image_data = resize_image(
