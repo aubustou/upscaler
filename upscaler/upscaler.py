@@ -105,25 +105,26 @@ def main():
         full_frame_resize_x = full_frame_resize_y = None
 
     upscale = not args.no_upscale
+    logger.info("Upscale: %s", upscale)
 
-    logging.info("Input folder: %s", input_folder)
+    logger.info("Input folder: %s", input_folder)
 
     if chosen_output_folder := args.output_folder:
         chosen_output_folder = chosen_output_folder / "upscaled"
-        logging.info("Output folder: %s", chosen_output_folder)
+        logger.info("Output folder: %s", chosen_output_folder)
     else:
-        logging.info("Output folder is not provided")
+        logger.info("Output folder is not provided")
 
     overwrite = args.overwrite
 
     gpu_number = args.gpu_number
-    logging.info("Set to GPU %d", gpu_number)
+    logger.info("Set to GPU %d", gpu_number)
     device = f"cuda:{gpu_number}"
 
     if enable_attention_slicing := args.enable_attention_slicing:
-        logging.info("Attention slicing enabled")
+        logger.info("Attention slicing enabled")
     else:
-        logging.info("Attention slicing disabled")
+        logger.info("Attention slicing disabled")
 
     for image in images:
         treat_image(
@@ -187,6 +188,9 @@ def treat_image(
     if resize_y is None:
         resize_y = image_data.height * 4
 
+    logger.info("Image size: %dx%d", image_data.width, image_data.height)
+    logger.info("Target size: %dx%d", resize_x, resize_y)
+
     if (
         upscale
         and image_data.width <= MAX_IMAGE_WIDTH
@@ -220,13 +224,13 @@ def treat_image(
         image_data = recompose_image(parts, image_data.width, image_data.height)
     # Upscale only if the image is smaller than the target size
     elif upscale and (image_data.width < resize_x or image_data.height < resize_y):
-        logging.info("Loading model %s", model_id)
+        logger.info("Loading model %s", model_id)
         torch.cuda.empty_cache()
         pipeline = StableDiffusionUpscalePipeline.from_pretrained(
             model_id, torch_dtype=torch.float16
         )
         pipeline = pipeline.to(device)
-        logging.info("Processing %s", image)
+        logger.info("Processing %s", image)
         if enable_attention_slicing:
             pipeline.enable_attention_slicing()
         elif enable_xformers_memory_attention:
@@ -239,7 +243,7 @@ def treat_image(
                 generator=[seed_generator] if seed_generator is not None else None,
             ).images[0]
         except OutOfMemoryError as exc:
-            logging.warning(exc)
+            logger.warning(exc)
             if not enable_attention_slicing:
                 return treat_image(
                     image,
@@ -267,7 +271,7 @@ def treat_image(
         )
     elif resize:
         image_data = image_data.resize((resize_x, resize_y), Resampling.LANCZOS)
-    logging.info("Saving %s", hi_res_img_path)
+    logger.info("Saving %s", hi_res_img_path)
     image_data.save(hi_res_img_path)
 
 
@@ -277,9 +281,9 @@ def resize_image(
     full_frame_resize: tuple[int, int],
 ) -> Image.Image:
     if resize:
-        logging.info("Resizing %s", resize)
+        logger.info("Resizing %s", resize)
         image = image.resize(resize, Resampling.LANCZOS)
-    logging.info("Resizing to full frame %s", full_frame_resize)
+    logger.info("Resizing to full frame %s", full_frame_resize)
     background = Image.new("RGB", full_frame_resize, (0, 0, 0))
     x = (background.width - image.width) // 2
     y = (background.height - image.height) // 2
