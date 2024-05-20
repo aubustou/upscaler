@@ -13,6 +13,8 @@ from PIL import Image
 from PIL.Image import Resampling
 from torch.cuda import OutOfMemoryError
 
+logger = logging.getLogger(__name__)
+
 model_id = "stabilityai/stable-diffusion-x4-upscaler"
 UPSCALED_SUFFIX = "_upscaled"
 TEMPORARY_SUFFIX = "_temp"
@@ -33,11 +35,15 @@ def cut_image(image: Image.Image) -> list[Image.Image]:
             part.save
             parts.append(part)
 
+    logger.info("Cut image into %d parts", len(parts))
+
     return parts
 
 
 def recompose_image(parts: list[Image.Image], width: int, height: int) -> Image.Image:
     """Recompose the image from the parts"""
+
+    logger.info("Recomposing image from %d parts", len(parts))
 
     image = Image.new("RGB", (width, height), (0, 0, 0))
     for i in range(0, width, width // 2):
@@ -163,6 +169,8 @@ def treat_image(
 
     if not isinstance(image, Path):
         raise ValueError("Image must be a Path")
+
+    logger.info("Upscaling %s", image)
 
     if not chosen_output_folder:
         output_folder = image.parent / "upscaled"
