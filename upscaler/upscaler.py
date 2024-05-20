@@ -193,7 +193,7 @@ def treat_image(
     number_of_pixels = image_data.width * image_data.height
 
     if upscale:
-        if number_of_pixels >= MAX_NUMBER_OF_PIXELS:
+        if number_of_pixels > MAX_NUMBER_OF_PIXELS:
             logger.info("Image is too big. Cutting it into parts")
 
             parts: list[Path] = cut_image(image)
