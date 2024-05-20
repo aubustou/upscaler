@@ -4,6 +4,7 @@ import argparse
 import logging
 import random
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import torch
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_upscale import (
@@ -24,17 +25,20 @@ MAX_IMAGE_HEIGHT = 500
 MAX_NUMBER_OF_PIXELS = MAX_IMAGE_WIDTH * MAX_IMAGE_HEIGHT
 
 
-def cut_image(image: Image.Image) -> list[Image.Image]:
+def cut_image(image: Path) -> list[Path]:
     """If the image is bigger than a given size, cut it into multiple, overlapping parts"""
     width = MAX_IMAGE_WIDTH
     height = MAX_IMAGE_HEIGHT
 
-    parts: list[Image.Image] = []
-    for i in range(0, image.width, width // 2):
-        for j in range(0, image.height, height // 2):
-            part = image.crop((i, j, i + width, j + height))
-            part.save
-            parts.append(part)
+    image_data = Image.open(image)
+
+    parts: list[Path] = []
+    for i in range(0, image_data.width, width // 2):
+        for j in range(0, image_data.height, height // 2):
+            part = image_data.crop((i, j, i + width, j + height))
+            path = image.parent / (image.stem + f"_{i}_{j}" + TEMPORARY_SUFFIX + ".jpg")
+            part.save(path)
+            parts.append(path)
 
     logger.info("Cut image into %d parts", len(parts))
 
@@ -145,7 +149,7 @@ def main():
 
 
 def treat_image(
-    image: Path | Image.Image,
+    image: Path,
     chosen_output_folder: Path,
     prompt: str,
     *,
@@ -161,16 +165,10 @@ def treat_image(
     device: str = "cuda",
     seed_generator: torch.Generator | None = None,
 ):
-    if isinstance(image, Path):
-        image_data = Image.open(image)
-    else:
-        image_data = image
-        image = Path(image.filename)
-
-    image_data = image_data.convert("RGB")
-
-    if not isinstance(image, Path):
-        raise ValueError("Image must be a Path")
+    image_data = Image.open(image)
+    if image_data.mode != "RGB":
+        logger.info("Converting image to RGB")
+        image_data = image_data.convert("RGB")
 
     logger.info("Upscaling %s", image)
 
@@ -198,7 +196,7 @@ def treat_image(
         if number_of_pixels >= MAX_NUMBER_OF_PIXELS:
             logger.info("Image is too big. Cutting it into parts")
 
-            parts: list[Image.Image] = cut_image(image_data)
+            parts: list[Path] = cut_image(image)
             seed = random.randint(0, 2**32 - 1)
             seed_generator = torch.Generator(device=device).manual_seed(seed)
 
