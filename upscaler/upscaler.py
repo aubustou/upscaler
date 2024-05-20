@@ -15,6 +15,7 @@ from torch.cuda import OutOfMemoryError
 
 model_id = "stabilityai/stable-diffusion-x4-upscaler"
 UPSCALED_SUFFIX = "_upscaled"
+TEMPORARY_SUFFIX = "_temp"
 
 MAX_IMAGE_WIDTH = 2048
 MAX_IMAGE_HEIGHT = 2048
@@ -29,7 +30,7 @@ def cut_image(image: Image.Image) -> list[Image.Image]:
     for i in range(0, image.width, width // 2):
         for j in range(0, image.height, height // 2):
             part = image.crop((i, j, i + width, j + height))
-            part.show()
+            part.save
             parts.append(part)
 
     return parts
@@ -153,9 +154,15 @@ def treat_image(
     seed_generator: torch.Generator | None = None,
 ):
     if isinstance(image, Path):
-        image = Image.open(image)
+        image_data = Image.open(image)
+    else:
+        image_data = image
+        image = Path(image.filename)
 
-    image_data = image.convert("RGB")
+    image_data = image_data.convert("RGB")
+
+    if not isinstance(image, Path):
+        raise ValueError("Image must be a Path")
 
     if not chosen_output_folder:
         output_folder = image.parent / "upscaled"
