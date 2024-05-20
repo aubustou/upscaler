@@ -136,7 +136,7 @@ def main():
 
 
 def treat_image(
-    image: Path,
+    image: Path | Image.Image,
     chosen_output_folder: Path,
     prompt: str,
     *,
@@ -152,7 +152,10 @@ def treat_image(
     device: str = "cuda",
     seed_generator: torch.Generator | None = None,
 ):
-    image_data = Image.open(image).convert("RGB")
+    if isinstance(image, Path):
+        image = Image.open(image)
+
+    image_data = image.convert("RGB")
 
     if not chosen_output_folder:
         output_folder = image.parent / "upscaled"
