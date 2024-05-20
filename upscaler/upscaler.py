@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import random
 from pathlib import Path
 
 import torch
@@ -14,6 +15,36 @@ from torch.cuda import OutOfMemoryError
 
 model_id = "stabilityai/stable-diffusion-x4-upscaler"
 UPSCALED_SUFFIX = "_upscaled"
+
+MAX_IMAGE_WIDTH = 2048
+MAX_IMAGE_HEIGHT = 2048
+
+
+def cut_image(image: Image.Image) -> list[Image.Image]:
+    """If the image is bigger than a given size, cut it into multiple, overlapping parts"""
+    width = MAX_IMAGE_WIDTH
+    height = MAX_IMAGE_HEIGHT
+
+    parts: list[Image.Image] = []
+    for i in range(0, image.width, width // 2):
+        for j in range(0, image.height, height // 2):
+            part = image.crop((i, j, i + width, j + height))
+            part.show()
+            parts.append(part)
+
+    return parts
+
+
+def recompose_image(parts: list[Image.Image], width: int, height: int) -> Image.Image:
+    """Recompose the image from the parts"""
+
+    image = Image.new("RGB", (width, height), (0, 0, 0))
+    for i in range(0, width, width // 2):
+        for j in range(0, height, height // 2):
+            part = parts.pop(0)
+            image.paste(part, (i, j))
+
+    return image
 
 
 def main():
@@ -119,6 +150,7 @@ def treat_image(
     enable_attention_slicing: bool = False,
     enable_xformers_memory_attention: bool = True,
     device: str = "cuda",
+    seed_generator: torch.Generator | None = None,
 ):
     image_data = Image.open(image).convert("RGB")
 
@@ -152,7 +184,11 @@ def treat_image(
             pipeline.enable_xformers_memory_efficient_attention()
 
         try:
-            image_data = pipeline(prompt=prompt, image=image_data).images[0]
+            image_data = pipeline(
+                prompt=prompt,
+                image=image_data,
+                generator=[seed_generator] if seed_generator is not None else None,
+            ).images[0]
         except OutOfMemoryError as exc:
             logging.warning(exc)
             if not enable_attention_slicing:
@@ -168,10 +204,38 @@ def treat_image(
                     full_frame_resize_x=full_frame_resize_x,
                     full_frame_resize_y=full_frame_resize_y,
                     enable_attention_slicing=True,
+                    seed_generator=seed_generator,
                 )
             else:
                 logging.error("Failed to upscale %s. Passing", image)
                 return
+    elif (
+        upscale
+        and image_data.width <= MAX_IMAGE_WIDTH
+        and image_data.height <= MAX_IMAGE_HEIGHT
+    ):
+        parts: list[Image.Image] = cut_image(image_data)
+        seed = random.randint(0, 2**32 - 1)
+        seed_generator = torch.Generator(device=device).manual_seed(seed)
+
+        for image_ in parts:
+            treat_image(
+                image_,
+                chosen_output_folder,
+                prompt,
+                overwrite=overwrite,
+                upscale=upscale,
+                resize=resize,
+                resize_x=resize_x,
+                resize_y=resize_y,
+                full_frame_resize_x=full_frame_resize_x,
+                full_frame_resize_y=full_frame_resize_y,
+                enable_attention_slicing=enable_attention_slicing,
+                enable_xformers_memory_attention=enable_xformers_memory_attention,
+                device=device,
+                seed_generator=seed_generator,
+            )
+            image_data = recompose_image(parts, image_data.width, image_data.height)
 
     if full_frame_resize_x is not None and full_frame_resize_y is not None:
         image_data = resize_image(
