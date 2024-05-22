@@ -33,8 +33,8 @@ def cut_image(image: Path) -> list[Path]:
     image_data = Image.open(image)
 
     parts: list[Path] = []
-    for i in range(0, image_data.width, width // 2):
-        for j in range(0, image_data.height, height // 2):
+    for i in range(0, image_data.width, width):
+        for j in range(0, image_data.height, height):
             part = image_data.crop(
                 (
                     i,
@@ -66,8 +66,8 @@ def recompose_image(parts: list[Image.Image], width: int, height: int) -> Image.
     # Upscale the width and height
     width = width * 4
     height = height * 4
-    max_width = MAX_IMAGE_WIDTH * 2
-    max_height = MAX_IMAGE_HEIGHT * 2
+    max_width = MAX_IMAGE_WIDTH * 4
+    max_height = MAX_IMAGE_HEIGHT * 4
 
     logger.info("Recomposing image from %d parts", len(parts))
 
@@ -312,22 +312,14 @@ def resize_image(
 
 
 if __name__ == "__main__":
-    main()
+    # main()
     # parts = cut_image(Path("95df8f14c935c44fdd6f353966974f81.jpg"))
-    # parts = [
-    #     Path("upscaled/de-funes_0_0_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_0_250_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_0_500_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_250_0_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_250_250_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_250_500_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_500_0_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_500_250_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_500_500_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_750_0_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_750_250_temp_upscaled.jpg"),
-    #     Path("upscaled/de-funes_750_500_temp_upscaled.jpg"),
-    # ]
-    # image = recompose_image_from_paths(parts, 960, 720)
-    # image.show()
-    # image.save("recomposed.jpg")
+    parts = [
+        Path("upscaled/de-funes_0_0_temp_upscaled.jpg"),
+        Path("upscaled/de-funes_0_500_temp_upscaled.jpg"),
+        Path("upscaled/de-funes_500_0_temp_upscaled.jpg"),
+        Path("upscaled/de-funes_500_500_temp_upscaled.jpg"),
+    ]
+    image = recompose_image_from_paths(parts, 960, 720)
+    image.show()
+    image.save("recomposed.jpg")
